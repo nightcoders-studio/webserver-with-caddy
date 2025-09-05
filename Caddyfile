@@ -1,0 +1,57 @@
+{
+  # ACME account email for certificate notices
+  email you@example.com
+  # Enable admin API for health checks and safe reloads
+  admin :2019
+}
+
+(common_headers) {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    # Optional CSP for static sites; adjust for your app needs.
+    # Content-Security-Policy "default-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+  }
+  log {
+    output stdout
+    format json
+  }
+}
+
+# --- Static site example (serves ./site) ---
+example.com {
+  import common_headers
+  root * /srv
+  file_server
+}
+
+# --- Reverse proxy example to an app on caddy_net ---
+app.example.com {
+  import common_headers
+
+  # Simple health endpoint served by Caddy itself
+  @health path /healthz
+  handle @health {
+    respond 200
+  }
+
+  reverse_proxy app:3000 {
+    # If your app exposes a health url, enable active health checks:
+    # health_uri /healthz
+    lb_policy least_conn
+    fail_duration 10s
+    max_fails 3
+    transport http {
+      read_timeout 30s
+      write_timeout 30s
+    }
+  }
+}
+
+# --- Optional: redirect www to apex ---
+# www.example.com {
+#   redir https://example.com{uri} permanent
+# }
